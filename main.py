@@ -52,19 +52,27 @@ class MainHandler(webapp.RequestHandler):
             self.response.out.write("Not a valid URL")
             return
         feed_dom = minidom.parseString(feed_string)
-        for link in feed_dom.getElementsByTagName('link'):
+        links = []
+        links.extend(feed_dom.getElementsByTagName('link'))
+        links.extend(feed_dom.getElementsByTagNameNS('http://www.w3.org/2005/Atom', 'link'))
+        for link in links:
             if link.getAttribute('rel') == 'hub':
                 # PubSubHubbub enabled feed
                 
                 hub_url = link.getAttribute('href')
-                title = [x.firstChild.data for x in feed_dom.getElementsByTagName('feed')[0].childNodes if x.nodeName == 'title']
-                title = title[0] if title else None
+                try:
+                    title = [x.firstChild.data for x in feed_dom.getElementsByTagName('feed')[0].childNodes if x.nodeName == 'title']
+                    title = title[0] if title else None
+                except IndexError:
+                    title = feed_dom.getElementsByTagName('title')[0].firstChild.data;
+
                 feed = Feed(url=feed_url, hub_url=hub_url, title=title)
                 feed.put()
                 
                 taskqueue.add(url='/subscribe', params={'id': feed.key().id()})
                 
                 self.redirect('/')
+                return
                 
         self.response.out.write("Not a feed or not a PubSubHubbub enabled feed")
 
